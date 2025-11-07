@@ -66,7 +66,7 @@ if prompt := st.chat_input('please enter your symptoms'):
         average_prob = ops.mean(target_probs) if target_probs else 0
     except: print('could not find markers in the output.')
     outext = tokenizer.detokenize(outokens)
-    outext = outext + f'condidence={average_prob}'
+    outext = outext + f' confidence={average_prob}'
   
     def stream_data():
         for word in outext.split(' '):
