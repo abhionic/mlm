@@ -22,14 +22,26 @@ for message in st.session_state.messages:
 def load_model():
     return kagglehub.model_download('abhionic/medcon/keras/14m')
 
-template = '<User> {user} <Model> '
+template = '<user> {user} <model> '
 path = load_model()
 model = keras.saving.load_model(f'{path}/model.keras')
 vocab = f'{path}/vocab.txt'; seq_len = 256
-tokenizer = kh.tokenizers.WordPieceTokenizer(vocab, seq_len, lowercase=True)
-sampler = kh.samplers.TopPSampler(temperature=0.2, p=0.5, k=5)
-def next(prompt, cache, index):
-    logits = model(prompt)[:, index-1, :]; hidden_states = None
+reserved_tokens = ['[PAD]', '[UNK]', '<user>', '<model>', '<preliminary diagnosis>',
+                   '<indicators>', '<causes>', '<treatment>', '<prevention>']
+tokenizer = kh.tokenizers.WordPieceTokenizer(vocab, seq_len, lowercase=True, strip_accents=True,
+                        special_tokens=reserved_tokens, special_tokens_in_strings=True)
+sampler = kh.samplers.TopPSampler(temperature=1, p=0.1, k=5)
+
+generated_token_probs = []; last_logits = None
+def next_with_prob(prompt, cache, index):
+    global last_logits
+    if last_logits is not None:
+        selected_token_id = prompt[0, index - 1]
+        probs = ops.softmax(last_logits, axis=-1)
+        selected_prob = probs[0, selected_token_id]
+        generated_token_probs.append(selected_prob)
+    logits = model(prompt)[:, index-1, :]
+    last_logits = logits; hidden_states = None
     return logits, hidden_states, cache
 
 # react to user input
@@ -40,13 +52,21 @@ if prompt := st.chat_input('please enter your symptoms'):
     with st.chat_message('user'):
         st.markdown(prompt)
 
-    text = template.format(user=prompt)
-    tokens = tokenizer(text); tokens = ops.expand_dims(tokens, axis=0)
-    ct = ops.count_nonzero(tokens)
-    outokens = sampler(next=next, prompt=tokens, index=ct)
-    padidx = ops.where(ops.equal(outokens, 0))
+    text = template.format(user=prompt); tokens = tokenizer(text) 
+    tokens = ops.expand_dims(tokens, axis=0); ct = ops.count_nonzero(tokens)
+    outokens = sampler(next=next_with_prob, prompt=tokens, index=ct)
+    padidx = ops.where(ops.equal(outokens, 0)) # remove padding
     if ops.size(padidx)>0: outokens = outokens[0, :padidx[1][0]]
+    try:
+        start_marker_id = tokenizer.token_to_id('<preliminary diagnosis>')
+        end_marker_id = tokenizer.token_to_id('<indicators>')
+        start_idx = ops.where(outokens == start_marker_id)[0][0]
+        end_idx = ops.where(outokens == end_marker_id)[0][0]
+        target_probs = generated_token_probs[start_idx + 1 : end_idx]
+        average_prob = ops.mean(target_probs) if target_probs else 0
+    except: print('could not find markers in the output.')
     outext = tokenizer.detokenize(outokens)
+    outext = outext + f'condidence={average_prob}'
   
     def stream_data():
         for word in outext.split(' '):
