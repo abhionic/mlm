@@ -68,9 +68,9 @@ if prompt := st.chat_input('please enter your symptoms'):
     outext = tokenizer.detokenize(outokens)
     outext = outext + f' confidence={average_prob}'
     if average_prob<0.99: 
-        outext = 'Based on the information provided, I cannot make a confident determination. 
+        outext = '''Based on the information provided, I cannot make a confident determination. 
         The symptoms are either outside my knowledge base, ambiguous, or insufficient for a diagnosis. 
-        It is essential to consult a qualified healthcare professional for an accurate medical evaluation.'
+        It is essential to consult a qualified healthcare professional for an accurate medical evaluation.'''
   
     def stream_data():
         for word in outext.split(' '):
