@@ -1,4 +1,4 @@
-# Abhishek Dutta, Copyright 2024, MIT License.
+# Abhishek Dutta, Copyright 2025, MIT License.
 
 import streamlit as st; import os; import time
 import keras; from keras import ops
@@ -67,6 +67,10 @@ if prompt := st.chat_input('please enter your symptoms'):
     except: print('could not find markers in the output.')
     outext = tokenizer.detokenize(outokens)
     outext = outext + f' confidence={average_prob}'
+    if average_prob<0.99: 
+        outext = 'Based on the information provided, I cannot make a confident determination. 
+        The symptoms are either outside my knowledge base, ambiguous, or insufficient for a diagnosis. 
+        It is essential to consult a qualified healthcare professional for an accurate medical evaluation.'
   
     def stream_data():
         for word in outext.split(' '):
