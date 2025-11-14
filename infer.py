@@ -22,12 +22,13 @@ for message in st.session_state.messages:
 def load_model():
     return kagglehub.model_download('abhionic/medcon/keras/14m')
 
-template = '<user> {user} <model> '
+template = '[user] {user} [model] '
 path = load_model()
 model = keras.saving.load_model(f'{path}/model.keras')
 vocab = f'{path}/vocab.txt'; seq_len = 256
-reserved_tokens = ['[PAD]', '[UNK]', '<user>', '<model>', '<preliminary diagnosis>',
-                   '<indicators>', '<causes>', '<treatment>', '<prevention>']
+control_tokens = ['[PAD]', '[UNK]', '[user]', '[model]']
+structure_tokens = ['[diagnosis]', '[indicators]', '[causes]', '[treatment]', '[prevention]']
+reserved_tokens = control_tokens + structure_tokens
 tokenizer = kh.tokenizers.WordPieceTokenizer(vocab, seq_len, lowercase=True, strip_accents=True,
                         special_tokens=reserved_tokens, special_tokens_in_strings=True)
 sampler = kh.samplers.TopPSampler(temperature=1, p=0.1, k=5)
@@ -58,8 +59,8 @@ if prompt := st.chat_input('please enter your symptoms'):
     padidx = ops.where(ops.equal(outokens, 0)) # remove padding
     if ops.size(padidx)>0: outokens = outokens[0, :padidx[1][0]]
     try:
-        start_marker_id = tokenizer.token_to_id('<preliminary diagnosis>')
-        end_marker_id = tokenizer.token_to_id('<indicators>')
+        start_marker_id = tokenizer.token_to_id('[diagnosis]')
+        end_marker_id = tokenizer.token_to_id('[indicators]')
         start_idx = ops.where(outokens == start_marker_id)[0][0]
         end_idx = ops.where(outokens == end_marker_id)[0][0]
         target_probs = generated_token_probs[start_idx + 1 : end_idx]
